@@ -16,7 +16,6 @@
 
 package me.lucko.jarreloator;
 
-import org.apache.commons.io.IOUtils;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -28,6 +27,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -120,7 +120,7 @@ public final class JarRelocator {
         jarEntry.setTime(lastModified);
 
         jos.putNextEntry(jarEntry);
-        IOUtils.copy(is, jos);
+        copyBytes(is, jos);
 
         resources.add(name);
     }
@@ -163,7 +163,18 @@ public final class JarRelocator {
 
         // Now we put it back on so the class file is written out with the right extension.
         out.putNextEntry(new JarEntry(mappedName + ".class"));
-        IOUtils.write(renamedClass, out);
+        out.write(renamedClass);
+    }
+
+    public static long copyBytes(InputStream input, OutputStream output) throws IOException {
+        byte[] buffer = new byte[4096];
+        long count;
+        int n;
+        for (count = 0L; -1 != (n = input.read(buffer)); count += (long) n) {
+            output.write(buffer, 0, n);
+        }
+
+        return count;
     }
 
     private static class RelocatingRemapper extends Remapper {
