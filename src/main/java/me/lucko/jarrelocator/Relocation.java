@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package me.lucko.jarreloator;
+package me.lucko.jarrelocator;
 
 public final class Relocation {
 

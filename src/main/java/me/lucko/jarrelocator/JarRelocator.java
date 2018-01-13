@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package me.lucko.jarreloator;
+package me.lucko.jarrelocator;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
