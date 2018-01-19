@@ -28,9 +28,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -47,6 +49,15 @@ public final class JarRelocator {
         this.input = input;
         this.output = output;
         this.relocations = relocations;
+    }
+
+    public JarRelocator(File input, File output, Map<String, String> relocations) {
+        this.input = input;
+        this.output = output;
+        this.relocations = new ArrayList<>(relocations.size());
+        for (Map.Entry<String, String> entry : relocations.entrySet()) {
+            this.relocations.add(new Relocation(entry.getKey(), entry.getValue()));
+        }
     }
 
     public void run() throws IOException {
@@ -166,7 +177,7 @@ public final class JarRelocator {
         out.write(renamedClass);
     }
 
-    public static long copyBytes(InputStream input, OutputStream output) throws IOException {
+    private static long copyBytes(InputStream input, OutputStream output) throws IOException {
         byte[] buffer = new byte[4096];
         long count;
         int n;
