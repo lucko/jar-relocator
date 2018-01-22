@@ -16,6 +16,13 @@
 
 package me.lucko.jarrelocator;
 
+import me.lucko.jarrelocator.util.SelectorUtils;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 public final class Relocation {
 
     private final String pattern;
@@ -23,16 +30,61 @@ public final class Relocation {
     private final String pathPattern;
     private final String relocatedPathPattern;
 
-    public Relocation(String pattern, String relocatedPattern) {
+    private final Set<String> includes;
+    private final Set<String> excludes;
+
+    public Relocation(String pattern, String relocatedPattern, Collection<String> includes, Collection<String> excludes) {
         this.pattern = pattern.replace('/', '.');
         this.pathPattern = pattern.replace('.', '/');
         this.relocatedPattern = relocatedPattern.replace('/', '.');
         this.relocatedPathPattern = relocatedPattern.replace('.', '/');
+
+        this.includes = normalizePatterns(includes);
+        this.excludes = normalizePatterns(excludes);
+
+        // Don't replace all dots to slashes, otherwise /META-INF/maven/${groupId} can't be matched.
+        if (includes != null && !includes.isEmpty()) {
+            this.includes.addAll(includes);
+        }
+        if (excludes != null && !excludes.isEmpty()) {
+            this.excludes.addAll(excludes);
+        }
+    }
+
+    public Relocation(String pattern, String relocatedPattern) {
+        this(pattern, relocatedPattern, Collections.emptyList(), Collections.emptyList());
+    }
+
+    private boolean isIncluded(String path) {
+        if (includes != null && !includes.isEmpty()) {
+            for (String include : includes) {
+                if (SelectorUtils.matchPath(include, path, true)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private boolean isExcluded(String path) {
+        if (excludes != null && !excludes.isEmpty()) {
+            for (String exclude : excludes) {
+                if (SelectorUtils.matchPath(exclude, path, true)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     boolean canRelocatePath(String path) {
         if (path.endsWith(".class")) {
             path = path.substring(0, path.length() - 6);
+        }
+
+        if (!isIncluded(path) || isExcluded(path)) {
+            return false;
         }
 
         // Allow for annoying option of an extra / on the front of a path. See MSHADE-119; comes from
@@ -54,5 +106,21 @@ public final class Relocation {
 
     String applyToSourceContent(String sourceContent) {
         return sourceContent.replaceAll("\\b" + pattern, relocatedPattern);
+    }
+
+    private static Set<String> normalizePatterns(Collection<String> patterns) {
+        Set<String> normalized = null;
+        if (patterns != null && !patterns.isEmpty()) {
+            normalized = new LinkedHashSet<>();
+            for (String pattern : patterns) {
+                String classPattern = pattern.replace('.', '/');
+                normalized.add(classPattern);
+                if (classPattern.endsWith("/*")) {
+                    String packagePattern = classPattern.substring(0, classPattern.lastIndexOf('/'));
+                    normalized.add(packagePattern);
+                }
+            }
+        }
+        return normalized;
     }
 }
