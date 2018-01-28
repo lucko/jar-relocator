@@ -16,13 +16,14 @@
 
 package me.lucko.jarrelocator;
 
-import me.lucko.jarrelocator.util.SelectorUtils;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+/**
+ * A relocation rule
+ */
 public final class Relocation {
 
     private final String pattern;
@@ -33,6 +34,14 @@ public final class Relocation {
     private final Set<String> includes;
     private final Set<String> excludes;
 
+    /**
+     * Creates a new relocation
+     *
+     * @param pattern the pattern to match
+     * @param relocatedPattern the pattern to relocate to
+     * @param includes a collection of patterns which this rule should specifically include
+     * @param excludes a collection of patterns which this rule should specifically exclude
+     */
     public Relocation(String pattern, String relocatedPattern, Collection<String> includes, Collection<String> excludes) {
         this.pattern = pattern.replace('/', '.');
         this.pathPattern = pattern.replace('.', '/');
@@ -42,7 +51,6 @@ public final class Relocation {
         this.includes = normalizePatterns(includes);
         this.excludes = normalizePatterns(excludes);
 
-        // Don't replace all dots to slashes, otherwise /META-INF/maven/${groupId} can't be matched.
         if (includes != null && !includes.isEmpty()) {
             this.includes.addAll(includes);
         }
@@ -51,8 +59,14 @@ public final class Relocation {
         }
     }
 
+    /**
+     * Creates a new relocation with no specific includes or excludes
+     *
+     * @param pattern the pattern to match
+     * @param relocatedPattern the pattern to relocate to
+     */
     public Relocation(String pattern, String relocatedPattern) {
-        this(pattern, relocatedPattern, Collections.emptyList(), Collections.emptyList());
+        this(pattern, relocatedPattern, Collections.<String>emptyList(), Collections.<String>emptyList());
     }
 
     private boolean isIncluded(String path) {
@@ -102,10 +116,6 @@ public final class Relocation {
 
     String relocateClass(String clazz) {
         return clazz.replaceFirst(pattern, relocatedPattern);
-    }
-
-    String applyToSourceContent(String sourceContent) {
-        return sourceContent.replaceAll("\\b" + pattern, relocatedPattern);
     }
 
     private static Set<String> normalizePatterns(Collection<String> patterns) {

@@ -52,7 +52,7 @@
  * <http://www.codehaus.org/>.
  */
 
-package me.lucko.jarrelocator.util;
+package me.lucko.jarrelocator;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -60,12 +60,8 @@ import java.util.List;
 import java.util.StringTokenizer;
 
 /**
- * <p>This is a utility class used by selectors and DirectoryScanner. The
- * functionality more properly belongs just to selectors, but unfortunately
- * DirectoryScanner exposed these as protected methods. Thus we have to
- * support any subclasses of DirectoryScanner that may access these methods.
- * </p>
- * <p>This is a Singleton.</p>
+ * This is a stripped down version of org.codehaus.plexus.util.SelectorUtils for
+ * use in {@link Relocation}.
  *
  * @author Arnout J. Kuiper
  * <a href="mailto:ajkuiper@wxs.nl">ajkuiper@wxs.nl</a>
@@ -74,7 +70,7 @@ import java.util.StringTokenizer;
  * @version $Id$
  * @since 1.5
  */
-public final class SelectorUtils {
+final class SelectorUtils {
 
     /*
      * Note: this is a stripped down version of org.codehaus.plexus.util.SelectorUtils
@@ -103,16 +99,12 @@ public final class SelectorUtils {
 
     private static boolean matchPath(String pattern, String str, String separator, boolean isCaseSensitive) {
         if (isRegexPrefixedPattern(pattern)) {
-            pattern =
-                    pattern.substring(REGEX_HANDLER_PREFIX.length(), pattern.length() - PATTERN_HANDLER_SUFFIX.length());
-
+            pattern = pattern.substring(REGEX_HANDLER_PREFIX.length(), pattern.length() - PATTERN_HANDLER_SUFFIX.length());
             return str.matches(pattern);
         } else {
             if (isAntPrefixedPattern(pattern)) {
-                pattern = pattern.substring(ANT_HANDLER_PREFIX.length(),
-                        pattern.length() - PATTERN_HANDLER_SUFFIX.length());
+                pattern = pattern.substring(ANT_HANDLER_PREFIX.length(), pattern.length() - PATTERN_HANDLER_SUFFIX.length());
             }
-
             return matchAntPathPattern(pattern, str, separator, isCaseSensitive);
         }
     }

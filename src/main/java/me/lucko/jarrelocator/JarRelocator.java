@@ -17,7 +17,6 @@
 package me.lucko.jarrelocator;
 
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.Remapper;
@@ -40,163 +39,181 @@ import java.util.jar.JarOutputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Relocates classes within a JAR archive.
+ */
 public final class JarRelocator {
-    private final File input;
-    private final File output;
-    private final Collection<Relocation> relocations;
 
-    public JarRelocator(File input, File output, Collection<Relocation> relocations) {
+    /** The input jar */
+    private final File input;
+    /** The output jar */
+    private final File output;
+    /** The relocation rules */
+    private final Collection<Relocation> rules;
+
+    /**
+     * Creates a new instance with the given settings.
+     *
+     * @param input the input jar file
+     * @param output the output jar file
+     * @param rules the relocation rules
+     */
+    public JarRelocator(File input, File output, Collection<Relocation> rules) {
         this.input = input;
         this.output = output;
-        this.relocations = relocations;
+        this.rules = rules;
     }
 
-    public JarRelocator(File input, File output, Map<String, String> relocations) {
+    /**
+     * Creates a new instance with the given settings.
+     *
+     * @param input the input jar file
+     * @param output the output jar file
+     * @param rules the relocation rules
+     */
+    public JarRelocator(File input, File output, Map<String, String> rules) {
         this.input = input;
         this.output = output;
-        this.relocations = new ArrayList<>(relocations.size());
-        for (Map.Entry<String, String> entry : relocations.entrySet()) {
-            this.relocations.add(new Relocation(entry.getKey(), entry.getValue()));
+        this.rules = new ArrayList<>(rules.size());
+        for (Map.Entry<String, String> entry : rules.entrySet()) {
+            this.rules.add(new Relocation(entry.getKey(), entry.getValue()));
         }
     }
 
+    /**
+     * Executes the relocation task
+     *
+     * @throws IOException if an exception is encountered whilst performing i/o
+     *                     with the input or output file
+     */
     public void run() throws IOException {
         Set<String> resources = new HashSet<>();
-        RelocatingRemapper remapper = new RelocatingRemapper(relocations);
+        Relocator relocator = new Relocator(rules);
 
-        try (JarOutputStream out = new JarOutputStream(new BufferedOutputStream(new FileOutputStream(output)))) {
-            JarFile jarFile = new JarFile(input);
-
-            for (Enumeration<JarEntry> j = jarFile.entries(); j.hasMoreElements(); ) {
-                JarEntry entry = j.nextElement();
+        try (JarOutputStream jarOut = new JarOutputStream(new BufferedOutputStream(new FileOutputStream(output))); JarFile jarIn = new JarFile(input)) {
+            for (Enumeration<JarEntry> entries = jarIn.entries(); entries.hasMoreElements(); ) {
+                JarEntry entry = entries.nextElement();
                 String name = entry.getName();
 
-                if (name.equals("META-INF/INDEX.LIST")) {
-                    // we cannot allow the jar indexes to be copied over or the
-                    // jar is useless. Ideally, we could create a new one
-                    // later
+                if (name.equals("META-INF/INDEX.LIST") || entry.isDirectory()) {
                     continue;
                 }
 
-                if (entry.isDirectory()) {
-                    continue;
-                }
+                String mappedName = relocator.map(name);
 
-                try (InputStream in = jarFile.getInputStream(entry)) {
-                    String mappedName = remapper.map(name);
-
-                    int idx = mappedName.lastIndexOf('/');
-                    if (idx != -1) {
+                try (InputStream entryIn = jarIn.getInputStream(entry)) {
+                    int index = mappedName.lastIndexOf('/');
+                    if (index != -1) {
                         // make sure dirs are created
-                        String dir = mappedName.substring(0, idx);
+                        String dir = mappedName.substring(0, index);
                         if (!resources.contains(dir)) {
-                            addDirectory(resources, out, dir);
+                            addDirectory(resources, jarOut, dir);
                         }
                     }
 
                     if (name.endsWith(".class")) {
-                        addRemappedClass(remapper, out, name, in);
+                        addRelocatedClass(relocator, name, entryIn, jarOut);
                     } else {
-                        // Avoid duplicates that aren't accounted for by the resource transformers
+                        // avoid duplicates
                         if (resources.contains(mappedName)) {
                             return;
                         }
 
-                        addResource(resources, out, mappedName, entry.getTime(), in);
+                        addResource(resources, mappedName, entry.getTime(), entryIn, jarOut);
                     }
                 }
             }
-
-            out.close();
         }
     }
 
-    private void addDirectory(Set<String> resources, JarOutputStream jos, String name) throws IOException {
+    private static void addDirectory(Set<String> resources, JarOutputStream jarOut, String name) throws IOException {
         if (name.lastIndexOf('/') > 0) {
             String parent = name.substring(0, name.lastIndexOf('/'));
             if (!resources.contains(parent)) {
-                addDirectory(resources, jos, parent);
+                addDirectory(resources, jarOut, parent);
             }
         }
 
         // directory entries must end in "/"
         JarEntry entry = new JarEntry(name + "/");
-        jos.putNextEntry(entry);
+        jarOut.putNextEntry(entry);
 
         resources.add(name);
     }
 
-    private void addResource(Set<String> resources, JarOutputStream jos, String name, long lastModified, InputStream is) throws IOException {
+    private static void addResource(Set<String> resources, String name, long lastModified, InputStream entryIn, JarOutputStream jarOut) throws IOException {
         JarEntry jarEntry = new JarEntry(name);
         jarEntry.setTime(lastModified);
 
-        jos.putNextEntry(jarEntry);
-        copyBytes(is, jos);
+        jarOut.putNextEntry(jarEntry);
+        copy(entryIn, jarOut);
 
         resources.add(name);
     }
 
-    private void addRemappedClass(RelocatingRemapper remapper, JarOutputStream out, String name, InputStream in) throws IOException {
-        ClassReader cr = new ClassReader(in);
-
-        // We don't pass the ClassReader here. This forces the ClassWriter to rebuild the constant pool.
-        // Copying the original constant pool should be avoided because it would keep references
-        // to the original class names. This is not a problem at runtime (because these entries in the
-        // constant pool are never used), but confuses some tools that use the constant pool to determine
-        // the dependencies of a class.
-        ClassWriter cw = new ClassWriter(0);
-
-        final String pkg = name.substring(0, name.lastIndexOf('/') + 1);
-        ClassVisitor cv = new ClassRemapper(cw, remapper) {
-            @Override
-            public void visitSource(final String source, final String debug) {
-                if (source == null) {
-                    super.visitSource(source, debug);
-                } else {
-                    final String fqSource = pkg + source;
-                    final String mappedSource = remapper.map(fqSource);
-                    final String filename = mappedSource.substring(mappedSource.lastIndexOf('/') + 1);
-                    super.visitSource(filename, debug);
-                }
-            }
-        };
+    private static void addRelocatedClass(Relocator relocator, String name, InputStream entryIn, JarOutputStream jarOut) throws IOException {
+        ClassReader classReader = new ClassReader(entryIn);
+        ClassWriter classWriter = new ClassWriter(0);
+        RelocatingClassVisitor classVisitor = new RelocatingClassVisitor(classWriter, relocator, name);
 
         try {
-            cr.accept(cv, ClassReader.EXPAND_FRAMES);
-        } catch (Throwable ise) {
-            throw new RuntimeException("Error in ASM processing class " + name, ise);
+            classReader.accept(classVisitor, ClassReader.EXPAND_FRAMES);
+        } catch (Throwable e) {
+            throw new RuntimeException("Error processing class " + name, e);
         }
 
-        byte[] renamedClass = cw.toByteArray();
+        byte[] renamedClass = classWriter.toByteArray();
 
         // Need to take the .class off for remapping evaluation
-        String mappedName = remapper.map(name.substring(0, name.indexOf('.')));
+        String mappedName = relocator.map(name.substring(0, name.indexOf('.')));
 
         // Now we put it back on so the class file is written out with the right extension.
-        out.putNextEntry(new JarEntry(mappedName + ".class"));
-        out.write(renamedClass);
+        jarOut.putNextEntry(new JarEntry(mappedName + ".class"));
+        jarOut.write(renamedClass);
     }
 
-    private static long copyBytes(InputStream input, OutputStream output) throws IOException {
-        byte[] buffer = new byte[4096];
-        long count;
-        int n;
-        for (count = 0L; -1 != (n = input.read(buffer)); count += (long) n) {
-            output.write(buffer, 0, n);
+    private static void copy(InputStream from, OutputStream to) throws IOException {
+        byte[] buf = new byte[8192];
+        while (true) {
+            int n = from.read(buf);
+            if (n == -1) {
+                break;
+            }
+            to.write(buf, 0, n);
         }
-
-        return count;
     }
 
-    private static class RelocatingRemapper extends Remapper {
-        private final Pattern classPattern = Pattern.compile("(\\[*)?L(.+);");
+    private static final class RelocatingClassVisitor extends ClassRemapper {
+        private final String pkg;
 
-        Collection<Relocation> relocations;
-
-        private RelocatingRemapper(Collection<Relocation> relocations) {
-            this.relocations = relocations;
+        private RelocatingClassVisitor(ClassWriter writer, Remapper remapper, String name) {
+            super(writer, remapper);
+            this.pkg = name.substring(0, name.lastIndexOf('/') + 1);
         }
 
+        @Override
+        public void visitSource(String source, String debug) {
+            if (source == null) {
+                super.visitSource(null, debug);
+            } else {
+                String fqSource = this.pkg + source;
+                String mappedSource = super.remapper.map(fqSource);
+                String filename = mappedSource.substring(mappedSource.lastIndexOf('/') + 1);
+                super.visitSource(filename, debug);
+            }
+        }
+    }
+
+    private static class Relocator extends Remapper {
+        private static final Pattern CLASS_PATTERN = Pattern.compile("(\\[*)?L(.+);");
+
+        private final Collection<Relocation> rules;
+
+        private Relocator(Collection<Relocation> rules) {
+            this.rules = rules;
+        }
+
+        @Override
         public Object mapValue(Object object) {
             if (object instanceof String) {
                 String name = (String) object;
@@ -205,14 +222,14 @@ public final class JarRelocator {
                 String prefix = "";
                 String suffix = "";
 
-                Matcher m = classPattern.matcher(name);
+                Matcher m = CLASS_PATTERN.matcher(name);
                 if (m.matches()) {
                     prefix = m.group(1) + "L";
                     suffix = ";";
                     name = m.group(2);
                 }
 
-                for (Relocation r : relocations) {
+                for (Relocation r : this.rules) {
                     if (r.canRelocateClass(name)) {
                         value = prefix + r.relocateClass(name) + suffix;
                         break;
@@ -228,20 +245,21 @@ public final class JarRelocator {
             return super.mapValue(object);
         }
 
+        @Override
         public String map(String name) {
             String value = name;
 
             String prefix = "";
             String suffix = "";
 
-            Matcher m = classPattern.matcher(name);
+            Matcher m = CLASS_PATTERN.matcher(name);
             if (m.matches()) {
                 prefix = m.group(1) + "L";
                 suffix = ";";
                 name = m.group(2);
             }
 
-            for (Relocation r : relocations) {
+            for (Relocation r : this.rules) {
                 if (r.canRelocatePath(name)) {
                     value = prefix + r.relocatePath(name) + suffix;
                     break;
@@ -250,6 +268,5 @@ public final class JarRelocator {
 
             return value;
         }
-
     }
 }
