@@ -63,20 +63,11 @@ import java.util.StringTokenizer;
  * This is a stripped down version of org.codehaus.plexus.util.SelectorUtils for
  * use in {@link Relocation}.
  *
- * @author Arnout J. Kuiper
- * <a href="mailto:ajkuiper@wxs.nl">ajkuiper@wxs.nl</a>
+ * @author Arnout J. Kuiper <a href="mailto:ajkuiper@wxs.nl">ajkuiper@wxs.nl</a>
  * @author Magesh Umasankar
  * @author <a href="mailto:bruce@callenish.com">Bruce Atherton</a>
- * @version $Id$
- * @since 1.5
  */
 final class SelectorUtils {
-
-    /*
-     * Note: this is a stripped down version of org.codehaus.plexus.util.SelectorUtils
-     * for use in 'Relocation'.
-     */
-
     private static final String PATTERN_HANDLER_PREFIX = "[";
     private static final String PATTERN_HANDLER_SUFFIX = "]";
     private static final String REGEX_HANDLER_PREFIX = "%regex" + PATTERN_HANDLER_PREFIX;

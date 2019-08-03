@@ -1,4 +1,6 @@
-# jar-relocator  [![Javadocs](https://javadoc.io/badge/me.lucko/jar-relocator.svg)](https://javadoc.io/doc/me.lucko/jar-relocator) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/me.lucko/jar-relocator/badge.svg)](https://maven-badges.herokuapp.com/maven-central/me.lucko/jar-relocator)
+# jar-relocator
+[![Javadocs](https://javadoc.io/badge/me.lucko/jar-relocator.svg)](https://javadoc.io/doc/me.lucko/jar-relocator)
+[![Maven Central](https://img.shields.io/maven-metadata/v/https/repo1.maven.org/maven2/me/lucko/jar-relocator/maven-metadata.xml.svg?label=maven%20central&colorB=brightgreen)](https://search.maven.org/artifact/me.lucko/jar-relocator)
 
 A Java program to relocate classes within a jar archive using ASM. (effectively a standalone implementation of the relocation functionality provided by the [maven-shade-plugin](https://maven.apache.org/plugins/maven-shade-plugin/).)
 
@@ -12,7 +14,13 @@ An alternative to creating an "uber" jar is to download copies of the required d
 
 A solution to this is to have the client apply the relocations too, after downloading the dependency from the official source.
 
-### Example Usage
+### Usage
+
+jar-relocator is [available from Maven Central, group id: `me.lucko`, artifact id: `jar-relocator`](https://search.maven.org/artifact/me.lucko/jar-relocator).
+
+jar relocator has two dependencies: ASM and ASM Commons. These are required at runtime.
+
+
 ```java
 import me.lucko.jarrelocator.JarRelocator;
 import me.lucko.jarrelocator.Relocation;
