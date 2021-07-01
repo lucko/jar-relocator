@@ -24,10 +24,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import java.util.jar.JarOutputStream;
+import java.util.jar.*;
+import java.util.regex.Pattern;
 
 /**
  * A task that copies {@link JarEntry jar entries} from a {@link JarFile jar input} to a
@@ -35,6 +35,22 @@ import java.util.jar.JarOutputStream;
  * {@link RelocatingRemapper}.
  */
 final class JarRelocatorTask {
+
+    /**
+     * META-INF/*.SF
+     * META-INF/*.DSA
+     * META-INF/*.RSA
+     * META-INF/SIG-*
+     *
+     * <a href="https://docs.oracle.com/en/java/javase/11/docs/specs/jar/jar.html#signed-jar-file">Specification</a>
+     */
+    private static final Pattern SIGNATURE_FILE_PATTERN = Pattern.compile("META-INF/(?:[^/]+\\.(?:DSA|RSA|SF)|SIG-[^/]+)");
+
+    /**
+     * <a href="https://docs.oracle.com/en/java/javase/11/docs/specs/jar/jar.html#signature-validation">Specification</a>
+     */
+    private static final Pattern SIGNATURE_PROPERTY_PATTERN = Pattern.compile(".*-Digest");
+
     private final RelocatingRemapper remapper;
     private final JarOutputStream jarOut;
     private final JarFile jarIn;
@@ -57,7 +73,13 @@ final class JarRelocatorTask {
             //
             // We don't process directory entries, and instead opt to recreate them when adding
             // classes/resources.
-            if (entry.getName().equals("META-INF/INDEX.LIST") || entry.isDirectory()) {
+            String name = entry.getName();
+            if (name.equals("META-INF/INDEX.LIST") || entry.isDirectory()) {
+                continue;
+            }
+
+            // Signatures will become invalid after remapping, so we delete them to avoid making the output useless
+            if (SIGNATURE_FILE_PATTERN.matcher(name).matches()) {
                 continue;
             }
 
@@ -76,6 +98,8 @@ final class JarRelocatorTask {
 
         if (name.endsWith(".class")) {
             processClass(name, entryIn);
+        } else if (name.equals("META-INF/MANIFEST.MF")) {
+            processManifest(name, entryIn, entry.getTime());
         } else if (!this.resources.contains(mappedName)) {
             processResource(mappedName, entryIn, entry.getTime());
         }
@@ -97,6 +121,32 @@ final class JarRelocatorTask {
         // directory entries must end in "/"
         JarEntry entry = new JarEntry(name + "/");
         this.jarOut.putNextEntry(entry);
+        this.resources.add(name);
+    }
+
+    private void processManifest(String name, InputStream entryIn, long lastModified) throws IOException {
+        Manifest in = new Manifest(entryIn);
+        Manifest out = new Manifest();
+
+        out.getMainAttributes().putAll(in.getMainAttributes());
+
+        for (Map.Entry<String, Attributes> entry : in.getEntries().entrySet()) {
+            Attributes outAttributes = new Attributes();
+            for (Map.Entry<Object, Object> property : entry.getValue().entrySet()) {
+                String key = property.getKey().toString();
+                if (!SIGNATURE_PROPERTY_PATTERN.matcher(key).matches()) {
+                    outAttributes.put(property.getKey(), property.getValue());
+                }
+            }
+            out.getEntries().put(entry.getKey(), outAttributes);
+        }
+
+        JarEntry jarEntry = new JarEntry(name);
+        jarEntry.setTime(lastModified);
+        this.jarOut.putNextEntry(jarEntry);
+
+        out.write(this.jarOut);
+
         this.resources.add(name);
     }
 
