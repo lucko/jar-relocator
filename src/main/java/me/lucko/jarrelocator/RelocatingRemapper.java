@@ -27,6 +27,7 @@ import java.util.regex.Pattern;
  */
 final class RelocatingRemapper extends Remapper {
     private static final Pattern CLASS_PATTERN = Pattern.compile("(\\[*)?L(.+);");
+    private static final Pattern VERSION_PATTERN = Pattern.compile("META-INF/versions/([0-9]*)/");
 
     private final Collection<Relocation> rules;
 
@@ -47,7 +48,17 @@ final class RelocatingRemapper extends Remapper {
 
     @Override
     public String map(String name) {
-        String relocatedName = relocate(name, false);
+        String relocatedName;
+
+        Matcher matcher = VERSION_PATTERN.matcher(name);
+        if (matcher.find()) {
+            String prefix = matcher.group();
+            String relocated = relocate(name.substring(prefix.length()), false);
+            relocatedName = relocated != null ? prefix + relocated : null;
+        } else {
+            relocatedName = relocate(name, false);
+        }
+
         if (relocatedName != null) {
             return relocatedName;
         }
