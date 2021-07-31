@@ -18,6 +18,7 @@ package me.lucko.jarrelocator;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.ClassRemapper;
 
 /**
@@ -27,7 +28,7 @@ final class RelocatingClassVisitor extends ClassRemapper {
     private final String packageName;
 
     RelocatingClassVisitor(ClassWriter writer, RelocatingRemapper remapper, String name) {
-        super(writer, remapper);
+        super(Opcodes.ASM9, writer, remapper);
         this.packageName = name.substring(0, name.lastIndexOf('/') + 1);
     }
 
