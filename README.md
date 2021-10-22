@@ -4,21 +4,21 @@
 
 A Java program to relocate classes within a jar archive using ASM. (effectively a standalone implementation of the relocation functionality provided by the [maven-shade-plugin](https://maven.apache.org/plugins/maven-shade-plugin/).)
 
-The use of shading allows Java programs to include all dependencies in one "uber" jar archive - meaning the dependency is available for use at runtime. However, directly including classes can cause conflicts due to duplicate copies of the same class potentially being present on the classpath.
+Shading allows Java developers to include both their app *and* library dependencies in one "uber" jar archive. This means dependencies are always available without needing to append them onto the classpath manually. However, this can cause problems if duplicate copies of the same class are on the classpath at the same time.
 
-To address this issue, one can relocate the "shaded" classes in order to create a private copy of their bytecode, and prevent potential conflicts.
+To address this issue, you can relocate the "shaded" classes to your own package/namespace in order to prevent conflicts.
 
 ### Why not just use the maven-shade-plugin?
 
-An alternative to creating an "uber" jar is to download copies of the required dependencies and add them to the classpath at runtime. This means one does not have to distribute large jar archives, but makes it infeasible to utilise maven-shade relocations (without self-hosting relocated copies of the dependencies), reintroducing the potential for the conflict issues explained previously.
+If you can relocate at build time - you should.
 
-A solution to this is to have the client apply the relocations too, after downloading the dependency from the official source.
+However, there are times where you might want to relocate at runtime, or at some other stage. My usecase is the app downloading dependencies dynamically from a repository on first startup, and needing to relocate then.
 
 ### Usage
 
 jar-relocator is [available from Maven Central, group id: `me.lucko`, artifact id: `jar-relocator`](https://search.maven.org/artifact/me.lucko/jar-relocator).
 
-jar relocator has two dependencies: ASM and ASM Commons. These are required at runtime.
+jar relocator has two dependencies: ASM and ASM Commons.
 
 
 ```java
