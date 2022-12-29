@@ -6,7 +6,7 @@
 
     <groupId>me.lucko</groupId>
     <artifactId>jar-relocator</artifactId>
-    <version>1.6</version>
+    <version>1.7-SNAPSHOT</version>
 
     <name>jar-relocator</name>
     <description>Utility to relocate classes within Jar archives</description>
