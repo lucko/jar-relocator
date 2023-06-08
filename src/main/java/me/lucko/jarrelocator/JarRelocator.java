@@ -22,6 +22,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.JarFile;
@@ -83,9 +85,12 @@ public final class JarRelocator {
             throw new IllegalStateException("#run has already been called on this instance");
         }
 
+        List<ResourceTransformer> transformers = new ArrayList<>();
+        transformers.add(new ServicesResourceTransformer());
+
         try (JarOutputStream out = new JarOutputStream(new BufferedOutputStream(new FileOutputStream(this.output)))) {
             try (JarFile in = new JarFile(this.input)) {
-                JarRelocatorTask task = new JarRelocatorTask(this.remapper, out, in);
+                JarRelocatorTask task = new JarRelocatorTask(this.remapper, out, in, Collections.unmodifiableList(transformers));
                 task.processEntries();
             }
         }

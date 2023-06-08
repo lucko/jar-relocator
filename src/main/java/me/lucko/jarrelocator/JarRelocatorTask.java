@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.jar.*;
@@ -54,13 +55,15 @@ final class JarRelocatorTask {
     private final RelocatingRemapper remapper;
     private final JarOutputStream jarOut;
     private final JarFile jarIn;
+    private final List<ResourceTransformer> transformers;
 
     private final Set<String> resources = new HashSet<>();
 
-    JarRelocatorTask(RelocatingRemapper remapper, JarOutputStream jarOut, JarFile jarIn) {
+    JarRelocatorTask(RelocatingRemapper remapper, JarOutputStream jarOut, JarFile jarIn, List<ResourceTransformer> transformers) {
         this.remapper = remapper;
         this.jarOut = jarOut;
         this.jarIn = jarIn;
+        this.transformers = transformers;
     }
 
     void processEntries() throws IOException {
@@ -86,6 +89,10 @@ final class JarRelocatorTask {
             try (InputStream entryIn = this.jarIn.getInputStream(entry)) {
                 processEntry(entry, entryIn);
             }
+        }
+
+        for (ResourceTransformer transformer : this.transformers) {
+            transformer.writeOutput(this.jarOut);
         }
     }
 
@@ -151,6 +158,13 @@ final class JarRelocatorTask {
     }
 
     private void processResource(String name, InputStream entryIn, long lastModified) throws IOException {
+        for (ResourceTransformer transformer : this.transformers) {
+            if (transformer.shouldTransformResource(name)) {
+                transformer.processResource(name, entryIn, this.remapper.getRules());
+                return;
+            }
+        }
+
         JarEntry jarEntry = new JarEntry(name);
         jarEntry.setTime(lastModified);
 

@@ -37,6 +37,10 @@ final class RelocatingRemapper extends Remapper {
         this.rules = rules;
     }
 
+    public Collection<Relocation> getRules() {
+        return this.rules;
+    }
+
     @Override
     public String map(String name) {
         String relocatedName = relocate(name, false);
